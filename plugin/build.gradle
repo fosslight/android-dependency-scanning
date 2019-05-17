@@ -1,0 +1,58 @@
+// This project's rootProject is ":buildSrc", so it should have a copy of build-script settings of the "/build.gradle"
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.novoda:bintray-release:0.9.1' // https://github.com/novoda/bintray-release
+    }
+}
+repositories {
+    jcenter()
+}
+
+apply from: file('../metadata.gradle')
+
+ext {
+    versionFile = file("../VERSION")
+    versionName = versionFile.readLines()[0].trim()
+    metadata.version = versionName
+}
+
+apply plugin: 'groovy'
+apply plugin: 'maven' // to add "plugin:install" to install it locally
+apply plugin: 'com.novoda.bintray-release' // to upload it to bintray
+
+targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_1_8
+
+final metadata = ext.metadata
+final ARTIFACT_ID = 'android-dependency-scanning'
+
+// for "plugin:install"
+group = metadata.groupId
+jar.baseName = ARTIFACT_ID
+version = metadata.version
+
+dependencies {
+    compile gradleApi()
+    compile localGroovy()
+
+    compile 'org.yaml:snakeyaml:1.17'
+    compile 'org.apache.commons:commons-lang3:3.4'
+    testCompile 'junit:junit:4.12'
+}
+
+
+publish {
+
+    userOrg = metadata.organization
+    groupId = metadata.groupId
+    repoName = 'osc-lge'
+    artifactId = ARTIFACT_ID
+    publishVersion = metadata.version
+    website = metadata.website
+    repository = metadata.repository
+    desc = 'A Gradle plugin to handle android application license notations'
+    licences = metadata.licences
+}
