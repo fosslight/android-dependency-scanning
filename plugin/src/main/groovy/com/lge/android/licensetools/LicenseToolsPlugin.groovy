@@ -79,10 +79,13 @@ class LicenseToolsPlugin implements Plugin<Project> {
         def generateLicenseTxt = project.task('generateLicenseTxt').doLast {
             initialize_NoncheckExist(project)
             def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
+            int idx = 1
+            
             LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
-            project.file(ext.outputTxt).append("OSS Name\tOSS Version\tLicense Name\tDownload Location\tHomepage")
+            project.file(ext.outputTxt).write("\"ID\"\tSource Name or Path\tOSS Name\tOSS Version\tLicense\tDownload Location\tHomepage\tCopyright Text\tLicense Text\tExclude\tComment\n")
+            project.file(ext.outputTxt).append("-\t[Name of the Source File or Path]\t[Name of the OSS used in the Source Code]\t[Version Number of the OSS]\t[License of the OSS. Use SPDX Identifier : https://spdx.org/licenses/]\t[Download URL or a specific location within a VCS for the OSS]\t[Web site that serves as the OSS's home page]\t[The copyright holders of the OSS]\t[License Text of the License. This field can be skipped if the License is in SPDX.]\t[If this OSS is not included in the final version, Exclude]\t")
             notDocumented.each { libraryInfo ->
-                def text = generateLibraryInfoTextWithVersion(libraryInfo)
+                def text = generateLibraryInfoTextWithVersion(libraryInfo,idx++)
                 project.file(ext.outputTxt).append("\n${text}")
             }
         }
@@ -218,21 +221,43 @@ class LicenseToolsPlugin implements Plugin<Project> {
         project.file("${assetsDir}/${ext.outputHtml}").write(Templates.wrapWithLayout(content))
     }
 
-    static String generateLibraryInfoTextWithVersion(LibraryInfo libraryInfo) {
+    static String generateLibraryInfoTextWithVersion(LibraryInfo libraryInfo,int idx) {
         def text = new StringBuffer()
+
+        String ID_Str = idx.toString()
+        text.append("${ID_Str}\t") // ID
+
+        text.append("build.gralde\t") // Source path
+
         text.append("${libraryInfo.name}\t") // OSS Name
+
         if (libraryInfo.artifactId.version) {
             text.append("${libraryInfo.artifactId.version}\t") // OSS Version
         } else {
             text.append("N/A\t")
         }
         text.append("${libraryInfo.license}\t") // License Name
-        text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.withSlash()}\t")
+
+        text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.withSlash()}\t") // Download Location
+
         if (libraryInfo.url) {
             text.append("${libraryInfo.url}\t") // Homepage Url
         } else {
-            text.append("Unknown\t")
+            text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.withSlash()}\t")
         }
+
+        if (libraryInfo.copyrightHolder) {
+            text.append("${libraryInfo.copyrightHolder}\t") // Copyright
+        } else {
+            text.append("\t")
+        }
+
+        if (libraryInfo.licenseUrl) {
+            text.append("${libraryInfo.licenseUrl}\t") // Homepage Url
+        } else {
+            text.append("\t")
+        }
+
         return text.toString().trim()
     }
     static String generateLibraryInfoText(LibraryInfo libraryInfo) {
