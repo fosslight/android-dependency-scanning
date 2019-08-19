@@ -1,9 +1,9 @@
 ext {
     metadata = [
-            organization: 'osc-lge',
+            organization: 'dd-lge',
             groupId     : 'com.lge.android.licensetools',
             website     : 'https://github.com/LG-Electronics/android-dependency-scanning',
-            repository  : 'git@github.com:LG-Electronics/android-dependency-scanning.git',
+            repository  : 'https://github.com/LG-Electronics/android-dependency-scanning',
             licences    : ['Apache-2.0']
     ]
 }

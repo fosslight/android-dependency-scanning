@@ -45,7 +45,6 @@ dependencies {
 
 
 publish {
-
     userOrg = metadata.organization
     groupId = metadata.groupId
     repoName = 'osc-lge'
