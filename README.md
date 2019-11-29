@@ -17,7 +17,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.lge.android.license:dependency-scanning-tool:0.1.0'
+        classpath 'com.lge.android.license:dependency-scanning-tool:0.2.0'
     }
 }
 
@@ -28,21 +28,21 @@ See [example/build.gradle] for example.
 
 ## How To Use
 
-### Generate `licenses.txt` by the `generateLicenseTxt` task
+### Generate `android_dependency_output.txt` by the `generateLicenseTxt` task
 
-`./gradlew generateLicenseTxt` generates `app/licenses.txt`.
-It generates a file 'licenses.txt' that lists the dependencies (including transitive dependencies) information.
+`./gradlew generateLicenseTxt` generates `app/android_dependency_output.txt`.
+It generates a file 'android_dependency_output.txt' that lists the dependencies (including transitive dependencies) information.
 
-Each OSS information (OSS name, OSS version, license name, download location, homepage) can be separated by 'tab' separator.
+Each OSS information can be separated by 'tab' separator.
 This tab-delimited text file can be converted for csv file.
 
-### Example of licenses.txt
+### Example of android_dependency_output.txt
 
 ```
-OSS Name	OSS Version	License Name	Download Location	Homepage
-Android Support Library media compat	27.0.0	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/com.android.support/support-media-compat/27.0.0	http://developer.android.com/tools/extras/support-library.html
-Android Support AnimatedVectorDrawable	27.0.0	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/com.android.support/animated-vector-drawable/27.0.0	http://developer.android.com/tools/extras/support-library.html
-Android Support VectorDrawable	27.0.0	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/com.android.support/support-vector-drawable/27.0.0	http://developer.android.com/tools/extras/support-library.html
+ID	Source Name or Path	OSS Name	OSS Version	License	Download Location	Homepage	Copyright Text	License Text	Exclude	Comment
+-	[Name of the Source File or Path]	[Name of the OSS used in the Source Code]	[Version Number of the OSS]	[License of the OSS. Use SPDX Identifier : https://spdx.org/licenses/]	[Download URL or a specific location within a VCS for the OSS]	[Web site that serves as the OSS's home page]	[The copyright holders of the OSS]	[License Text of the License. This field can be skipped if the License is in SPDX.]	[If this OSS is not included in the final version, Exclude]	
+1	build.gralde	Android Arch-Common	1.1.1	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/android.arch.core/common/1.1.1	https://developer.android.com/topic/libraries/architecture/index.html		http://www.apache.org/licenses/LICENSE-2.0.txt		
+2	build.gralde	FindBugs-jsr305	3.0.1	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/com.google.code.findbugs/jsr305/3.0.1	http://findbugs.sourceforge.net/		http://www.apache.org/licenses/LICENSE-2.0.txt	
 ```
 
 ### Run the `checkLicenses` task
