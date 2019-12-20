@@ -231,7 +231,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
         String ID_Str = idx.toString()
         text.append("${ID_Str}\t") // ID
 
-        text.append("build.gralde\t") // Source path
+        text.append("build.gradle\t") // Source path
 
         text.append("${libraryInfo.name}\t") // OSS Name
 
