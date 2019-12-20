@@ -80,7 +80,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
             initialize_NoncheckExist(project)
             def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
             int idx = 1
-            
+
             LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
             project.file(ext.outputTxt).write("\"ID\"\tSource Name or Path\tOSS Name\tOSS Version\tLicense\tDownload Location\tHomepage\tCopyright Text\tLicense Text\tExclude\tComment\n")
             project.file(ext.outputTxt).append("-\t[Name of the Source File or Path]\t[Name of the OSS used in the Source Code]\t[Version Number of the OSS]\t[License of the OSS. Use SPDX Identifier : https://spdx.org/licenses/]\t[Download URL or a specific location within a VCS for the OSS]\t[Web site that serves as the OSS's home page]\t[The copyright holders of the OSS]\t[License Text of the License. This field can be skipped if the License is in SPDX.]\t[If this OSS is not included in the final version, Exclude]\t")
@@ -88,6 +88,10 @@ class LicenseToolsPlugin implements Plugin<Project> {
                 def text = generateLibraryInfoTextWithVersion(libraryInfo,idx++)
                 project.file(ext.outputTxt).append("\n${text}")
             }
+
+            def outPath = project.file(ext.outputTxt).getAbsolutePath()
+
+            project.logger.warn("Generated 'android_dependency_output.txt' file in ${outPath}")
         }
         def generateLicensePage = project.task('generateLicensePage').doLast {
             initialize(project)

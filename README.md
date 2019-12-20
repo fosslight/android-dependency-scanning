@@ -6,7 +6,7 @@ Gradle Plugin to check library licenses and generate license pages.
 * `./gradlew checkLicenses` to check licenses in dependencies
 * `./gradlew updateLicenses` to update library information file `licenses.yml`
 
-## Setup // not yet uploaded
+## Setup
 
 This plugin requires JDK8 (1.8.0 or later).
 
@@ -17,7 +17,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.lge.android.license:dependency-scanning-tool:0.2.0'
+        classpath 'com.lge.android.license:dependency-scanning-tool:0.2.1'
     }
 }
 
@@ -30,7 +30,8 @@ See [example/build.gradle] for example.
 
 ### Generate `android_dependency_output.txt` by the `generateLicenseTxt` task
 
-`./gradlew generateLicenseTxt` generates `app/android_dependency_output.txt`.
+`./gradlew generateLicenseTxt` generates `android_dependency_output.txt`.
+It can be found in 'module name (default:app)' directory where this plugin is applied.
 It generates a file 'android_dependency_output.txt' that lists the dependencies (including transitive dependencies) information.
 
 Each OSS information can be separated by 'tab' separator.
