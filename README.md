@@ -17,7 +17,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.lge.android.license:dependency-scanning-tool:0.2.2'
+        classpath 'com.lge.android.licensetools:dependency-scanning-tool:0.2.2'
     }
 }
 
