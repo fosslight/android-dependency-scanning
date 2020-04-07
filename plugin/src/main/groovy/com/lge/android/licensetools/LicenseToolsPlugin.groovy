@@ -233,7 +233,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
 
         text.append("build.gradle\t") // Source path
 
-        text.append("${libraryInfo.name}\t") // OSS Name
+        text.append("${libraryInfo.artifactId.group}:${libraryInfo.artifactId.name}\t") // OSS Name (groupId:artifactId)
 
         if (libraryInfo.artifactId.version) {
             text.append("${libraryInfo.artifactId.version}\t") // OSS Version
@@ -247,7 +247,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
         if (libraryInfo.url) {
             text.append("${libraryInfo.url}\t") // Homepage Url
         } else {
-            text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.withSlash()}\t")
+            text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.group}/${libraryInfo.artifactId.name}\t")
         }
 
         if (libraryInfo.copyrightHolder) {
