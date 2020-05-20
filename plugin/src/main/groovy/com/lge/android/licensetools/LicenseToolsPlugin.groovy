@@ -240,7 +240,10 @@ class LicenseToolsPlugin implements Plugin<Project> {
         } else {
             text.append("N/A\t")
         }
-        text.append("${libraryInfo.license}\t") // License Name
+        String license_origin = libraryInfo.license
+        String modified_license = license_origin.replace(",","")
+
+        text.append("${modified_license}\t") // License Name
 
         text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.withSlash()}\t") // Download Location
 

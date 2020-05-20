@@ -17,7 +17,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.lge.android.licensetools:dependency-scanning-tool:0.3.0'
+        classpath 'com.lge.android.licensetools:dependency-scanning-tool:0.4.0'
     }
 }
 
@@ -42,8 +42,8 @@ This tab-delimited text file can be converted for csv file.
 ```
 ID	Source Name or Path	OSS Name	OSS Version	License	Download Location	Homepage	Copyright Text	License Text	Exclude	Comment
 -	[Name of the Source File or Path]	[Name of the OSS used in the Source Code]	[Version Number of the OSS]	[License of the OSS. Use SPDX Identifier : https://spdx.org/licenses/]	[Download URL or a specific location within a VCS for the OSS]	[Web site that serves as the OSS's home page]	[The copyright holders of the OSS]	[License Text of the License. This field can be skipped if the License is in SPDX.]	[If this OSS is not included in the final version, Exclude]	
-1	build.gradle	android.arch.core:common	1.1.1	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/android.arch.core/common/1.1.1	https://developer.android.com/topic/libraries/architecture/index.html		http://www.apache.org/licenses/LICENSE-2.0.txt
-2	build.gradle	com.google.code.findbugs:jsr305	3.0.1	The Apache Software License, Version 2.0	https://mvnrepository.com/artifact/com.google.code.findbugs/jsr305/3.0.1	http://findbugs.sourceforge.net/		http://www.apache.org/licenses/LICENSE-2.0.txt
+1	build.gradle	android.arch.core:common	1.1.1	The Apache Software License Version 2.0	https://mvnrepository.com/artifact/android.arch.core/common/1.1.1	https://developer.android.com/topic/libraries/architecture/index.html		http://www.apache.org/licenses/LICENSE-2.0.txt
+2	build.gradle	com.google.code.findbugs:jsr305	3.0.1	The Apache Software License Version 2.0	https://mvnrepository.com/artifact/com.google.code.findbugs/jsr305/3.0.1	http://findbugs.sourceforge.net/		http://www.apache.org/licenses/LICENSE-2.0.txt
 ```
 
 ### Run the `checkLicenses` task
