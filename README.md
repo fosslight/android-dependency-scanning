@@ -1,4 +1,4 @@
-# Android Dependency Scanning Tool
+# Android Dependency Scanning
 
 It is a gradle plugin to analyze the android dependencies and generate the report.
 
