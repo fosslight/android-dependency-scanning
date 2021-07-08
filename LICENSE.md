@@ -1,4 +1,4 @@
-Copyright (c) 2019 LG Electronics Inc.
+Copyright (c) 2019 LG Electronics Inc.  
 Copyright (c) 2016 Cookpad Inc.
 
 ---
