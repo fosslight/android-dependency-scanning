@@ -58,6 +58,7 @@ ID	Source Name or Path	OSS Name	OSS Version	License	Download Location	Homepage	C
 
 
 ## 📄 License
-Copyright (c) 2019 LG Electronics.  
+Copyright (c) 2019 LG Electronics  
 Copyright (c) 2016 Cookpad Inc.  
-Android dependency scanning is released under [Apache-2.0](LICENSE.md).
+Android dependency scanning is released under [Apache-2.0](LICENSE.md).  
+It is based on the [cookpad/license-tools-plugin](https://github.com/cookpad/license-tools-plugin).
