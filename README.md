@@ -1,5 +1,5 @@
 # Android Dependency Scanning
-<img src="https://img.shields.io/badge/license-Apache--2.0-orange" alt="FOSSLight android dependency scanning is released under the Apache-2.0." />
+<img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="FOSSLight android dependency scanning is released under the Apache-2.0." />
 It is a gradle plugin to analyze the android dependencies and generate the report.
 
 ## Features
