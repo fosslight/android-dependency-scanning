@@ -1,38 +1,30 @@
 // This project's rootProject is ":buildSrc", so it should have a copy of build-script settings of the "/build.gradle"
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
+        google()
     }
+
     dependencies {
-        classpath 'com.novoda:bintray-release:0.9.1' // https://github.com/novoda/bintray-release
+        classpath "com.android.tools.build:gradle:3.4.0"
     }
 }
+
 repositories {
     jcenter()
-}
-
-apply from: file('../metadata.gradle')
-
-ext {
-    versionFile = file("../VERSION")
-    versionName = versionFile.readLines()[0].trim()
-    metadata.version = versionName
+    mavenCentral()
 }
 
 apply plugin: 'groovy'
-apply plugin: 'maven' // to add "plugin:install" to install it locally
-apply plugin: 'com.novoda.bintray-release' // to upload it to bintray
+apply plugin: 'maven'
+apply plugin: 'signing'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
 
-final metadata = ext.metadata
-final ARTIFACT_ID = 'android-dependency-scanning'
-
-// for "plugin:install"
-group = metadata.groupId
-jar.baseName = ARTIFACT_ID
-version = metadata.version
+group = 'org.fosslight'
+archivesBaseName = 'android-dependency-scanning'
+version = '1.0.0'
 
 dependencies {
     compile gradleApi()
@@ -43,15 +35,65 @@ dependencies {
     testCompile 'junit:junit:4.12'
 }
 
-
-publish {
-    userOrg = metadata.organization
-    groupId = metadata.groupId
-    repoName = 'osc-lge'
-    artifactId = ARTIFACT_ID
-    publishVersion = metadata.version
-    website = metadata.website
-    repository = metadata.repository
-    desc = 'A Gradle plugin to handle android application license notations'
-    licences = metadata.licences
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
 }
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+signing {
+    required { gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: findProperty('ossrhUsername'), password: findProperty('ossrhPassword'))
+            }
+
+            snapshotRepository(url: "https://s01.oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: findProperty('ossrhUsername'), password: findProperty('ossrhPassword'))
+            }
+
+            pom.project {
+                name 'Android Dependency Scanning'
+                packaging 'jar'
+                // optionally artifactId can be defined here
+                description 'Gradle plugin to analyze the android dependencies and generate the report.'
+                url 'https://github.com/fosslight/android-dependency-scanning'
+
+                scm {
+                    url 'https://github.com/fosslight/android-dependency-scanning.git'
+                }
+
+                licenses {
+                    license {
+                        name 'Apache-2.0'
+                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'fosslight'
+                        name 'fosslight'
+                        email 'fosslight-dev@lge.com'
+                    }
+                }
+            }
+        }
+    }
+}
+

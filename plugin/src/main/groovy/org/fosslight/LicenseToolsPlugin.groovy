@@ -1,4 +1,4 @@
-package com.lge.android.licensetools
+package org.fosslight
 
 import groovy.json.JsonBuilder
 import groovy.util.slurpersupport.GPathResult
@@ -91,7 +91,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
 
             def outPath = project.file(ext.outputTxt).getAbsolutePath()
 
-            project.logger.warn("Generated 'android_dependency_output.txt' file in ${outPath}")
+            project.logger.warn("Generated 'android_dependency_output.txt' outputs file in ${outPath}")
         }
         def generateLicensePage = project.task('generateLicensePage').doLast {
             initialize(project)

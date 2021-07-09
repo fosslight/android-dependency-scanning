@@ -1,4 +1,4 @@
-package com.lge.android.licensetools
+package org.fosslight
 
 public class LibraryInfo implements Comparable<LibraryInfo> {
 

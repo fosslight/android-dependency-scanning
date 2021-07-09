@@ -1,4 +1,4 @@
-package com.lge.android.licensetools;
+package org.fosslight;
 
 public class ArtifactId implements Comparable<ArtifactId> {
 

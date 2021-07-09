@@ -1,4 +1,4 @@
-package com.lge.android.licensetools;
+package org.fosslight;
 
 import java.util.ArrayList;
 import java.util.Iterator;

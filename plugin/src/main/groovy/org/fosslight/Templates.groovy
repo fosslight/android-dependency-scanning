@@ -1,4 +1,4 @@
-package com.lge.android.licensetools
+package org.fosslight
 
 import groovy.text.SimpleTemplateEngine
 import groovy.transform.CompileStatic
