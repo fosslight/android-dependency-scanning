@@ -17,12 +17,12 @@ This plugin requires JDK8 (1.8.0 or later).
 ```
 buildscript {
     repositories {
-        jcenter()
+        MavenCentral()
     }
 
     dependencies {
         // Android dependency scanning Plugin
-        classpath 'com.lge.android.licensetools:android-dependency-scanning:0.4.0'
+        classpath 'org.fosslight:android-dependency-scanning:1.0.0'
     }
 }
 ```
@@ -31,7 +31,7 @@ buildscript {
 
 3. Add the below line in build.gradle file of {module name} directory to apply the plugin.
 ```
-apply plugin: 'com.lge.android.licensetools'
+apply plugin: 'org.fosslight'
 ```
 
 
@@ -39,7 +39,7 @@ apply plugin: 'com.lge.android.licensetools'
 
 Please run the below command in the terminal.
 ```
-./gradlew generateLicenseTxt
+gradlew generateLicenseTxt
 ```
 
 
