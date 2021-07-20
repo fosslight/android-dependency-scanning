@@ -17,7 +17,7 @@ This plugin requires JDK8 (1.8.0 or later).
 ```
 buildscript {
     repositories {
-        MavenCentral()
+        mavenCentral()
     }
 
     dependencies {
