@@ -1,7 +1,7 @@
 package org.fosslight
 
 import groovy.json.JsonBuilder
-import groovy.util.slurpersupport.GPathResult
+import groovy.xml.XmlSlurper
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -168,7 +168,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
 
             XmlSlurper slurper = new XmlSlurper(true, false)
             slurper.setErrorHandler(new DefaultHandler())
-            GPathResult xml = slurper.parse(pStream)
+            def xml = slurper.parse(pStream)
 
             libraryInfo.libraryName = xml.name.text()
             libraryInfo.url = xml.url.text()
@@ -366,39 +366,74 @@ class LicenseToolsPlugin implements Plugin<Project> {
     }
 
     // originated from https://github.com/hierynomus/license-gradle-plugin DependencyResolver.groovy
-    Set<ResolvedArtifact> resolveProjectDependencies(Project project, Set<String> ignoredProjects) {
-        def subprojects = project.rootProject.subprojects.findAll { Project p -> !ignoredProjects.contains(p.name) }
-                .groupBy { Project p -> "$p.group:$p.name:$p.version" }
-
+    Set<ResolvedArtifact> resolveProjectDependencies(
+            Project project,
+            Set<String> ignoredProjects
+    ) {
         List<ResolvedArtifact> runtimeDependencies = []
 
-        project.rootProject.subprojects.findAll { Project p -> !ignoredProjects.contains(p.name) }.each { Project subproject ->
-            runtimeDependencies << subproject.configurations.all.findAll { Configuration c ->
-                // compile|implementation|api, release(Compile|Implementation|Api), releaseProduction(Compile|Implementation|Api), and so on.
-                c.name.matches(/^(?!releaseUnitTest)(?:release\w*)?([cC]ompile|[cC]ompileOnly|[iI]mplementation|[aA]pi)$/)
-            }.collect {
-                Configuration copyConfiguration = it.copyRecursive()
-                copyConfiguration.setCanBeResolved(true)
-                copyConfiguration.resolvedConfiguration.lenientConfiguration.artifacts
-            }.flatten() as List<ResolvedArtifact>
-        }
+        /*
+        * Analyze only resolvable runtime classpath configurations belonging
+        * to the project where the FOSSLight plugin is applied.
+        *
+        * The app RuntimeClasspath includes:
+        * - Direct external dependencies of the app
+        * - External dependencies from project(':library')
+        * - Transitive dependencies
+        */
+        project.configurations
+                .findAll { Configuration configuration ->
+                    String name = configuration.name.toLowerCase()
 
-        runtimeDependencies = runtimeDependencies.flatten()
-        runtimeDependencies.removeAll([null])
-
-        def seen = new HashSet<String>()
-        def dependenciesToHandle = new HashSet<ResolvedArtifact>()
-        runtimeDependencies.each { ResolvedArtifact d ->
-            String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version"
-            if (!seen.contains(dependencyDesc)) {
-                dependenciesToHandle.add(d)
-
-                Project subproject = subprojects[dependencyDesc]?.first()
-                if (subproject) {
-                    dependenciesToHandle.addAll(resolveProjectDependencies(subproject))
+                    configuration.canBeResolved &&
+                            name.endsWith('releaseruntimeclasspath') &&
+                            !name.contains('test')
                 }
+                .each { Configuration configuration ->
+                    project.logger.info(
+                            "Resolving configuration: " +
+                                    "${project.path}:${configuration.name}"
+                    )
+
+                    Set<ResolvedArtifact> artifacts =
+                            configuration.resolvedConfiguration
+                                    .lenientConfiguration
+                                    .artifacts
+
+                    runtimeDependencies.addAll(artifacts)
+                }
+
+        /*
+        * Remove duplicates using group:name:version.
+        */
+        Map<String, ResolvedArtifact> uniqueDependencies =
+                new LinkedHashMap<>()
+
+        runtimeDependencies.each { ResolvedArtifact artifact ->
+            if (artifact == null) {
+                return
             }
+
+            def moduleId = artifact.moduleVersion?.id
+
+            if (!moduleId?.group ||
+                    !moduleId?.name ||
+                    !moduleId?.version ||
+                    moduleId.version == 'unspecified') {
+                return
+            }
+
+            String dependencyDesc =
+                    "${moduleId.group}:${moduleId.name}:${moduleId.version}"
+
+            uniqueDependencies.putIfAbsent(
+                    dependencyDesc,
+                    artifact
+            )
         }
-        return dependenciesToHandle
+
+        return new LinkedHashSet<ResolvedArtifact>(
+                uniqueDependencies.values()
+        )
     }
 }
