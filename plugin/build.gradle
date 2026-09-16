@@ -1,99 +1,152 @@
-// This project's rootProject is ":buildSrc", so it should have a copy of build-script settings of the "/build.gradle"
 buildscript {
     repositories {
-        mavenCentral()
         google()
+        mavenCentral()
+        gradlePluginPortal()
     }
 
     dependencies {
-        classpath "com.android.tools.build:gradle:3.4.0"
+        classpath "com.android.tools.build:gradle:8.11.1"
     }
 }
 
-repositories {
-    jcenter()
-    mavenCentral()
+plugins {
+    id 'groovy'
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    id 'signing'
 }
-
-apply plugin: 'groovy'
-apply plugin: 'maven'
-apply plugin: 'signing'
-
-targetCompatibility = JavaVersion.VERSION_1_8
-sourceCompatibility = JavaVersion.VERSION_1_8
 
 group = 'org.fosslight'
-archivesBaseName = 'android-dependency-scanning'
-version = '1.0.0'
+version = '2.0.0-SNAPSHOT'
+
+base {
+    archivesName = 'android-dependency-scanning'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
+}
+
+repositories {
+    google()
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+def embeddedGroovyVersion = GroovySystem.version
+def groovyGroup = embeddedGroovyVersion.startsWith('4.') ? 'org.apache.groovy' : 'org.codehaus.groovy'
 
 dependencies {
-    compile gradleApi()
-    compile localGroovy()
+    implementation gradleApi()
+    implementation localGroovy()
 
-    compile 'org.yaml:snakeyaml:1.17'
-    compile 'org.apache.commons:commons-lang3:3.4'
-    testCompile 'junit:junit:4.12'
+    implementation "${groovyGroup}:groovy-xml:${embeddedGroovyVersion}"
+
+    implementation 'org.yaml:snakeyaml:1.17'
+    implementation 'org.apache.commons:commons-lang3:3.4'
+
+    testImplementation 'junit:junit:4.13.2'
 }
 
-task javadocJar(type: Jar) {
-    classifier = 'javadoc'
-    from javadoc
+tasks.register('javadocJar', Jar) {
+    dependsOn tasks.named('groovydoc')
+    archiveClassifier.set('javadoc')
+    from tasks.named('groovydoc').map { it.destinationDir }
 }
 
-task sourcesJar(type: Jar) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
-}
+publishing {
+    publications.withType(MavenPublication).configureEach { publication ->
+        if (publication.name == 'pluginMaven') {
+            publication.groupId = project.group.toString()
+            publication.artifactId = 'android-dependency-scanning'
+            publication.version = project.version.toString()
+            publication.artifact(tasks.named('javadocJar'))
+        }
 
-artifacts {
-    archives javadocJar, sourcesJar
-}
+        pom {
+            name = 'Android Dependency Scanning'
+            description = 'Gradle plugin to analyze Android dependencies and generate the report.'
+            url = 'https://github.com/fosslight/android-dependency-scanning'
 
-signing {
-    required { gradle.taskGraph.hasTask("uploadArchives") }
-    sign configurations.archives
-}
+            licenses {
+                license {
+                    name = 'Apache License, Version 2.0'
+                    url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                    distribution = 'repo'
+                }
+            }
 
-uploadArchives {
+            developers {
+                developer {
+                    id = 'fosslight'
+                    name = 'FOSSLight'
+                    email = 'fosslight-dev@lge.com'
+                }
+            }
+
+            scm {
+                connection = 'scm:git:https://github.com/fosslight/android-dependency-scanning.git'
+                developerConnection = 'scm:git:ssh://git@github.com/fosslight/android-dependency-scanning.git'
+                url = 'https://github.com/fosslight/android-dependency-scanning'
+            }
+        }
+    }
+
     repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+        maven {
+            name = 'ossrh'
 
-            repository(url: "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: findProperty('ossrhUsername'), password: findProperty('ossrhPassword'))
-            }
+            def releasesRepositoryUrl =
+                    findProperty('releasesRepositoryUrl')
+                            ?: 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
 
-            snapshotRepository(url: "https://s01.oss.sonatype.org/content/repositories/snapshots/") {
-                authentication(userName: findProperty('ossrhUsername'), password: findProperty('ossrhPassword'))
-            }
+            def snapshotsRepositoryUrl =
+                    findProperty('snapshotsRepositoryUrl')
+                            ?: 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
 
-            pom.project {
-                name 'Android Dependency Scanning'
-                packaging 'jar'
-                // optionally artifactId can be defined here
-                description 'Gradle plugin to analyze the android dependencies and generate the report.'
-                url 'https://github.com/fosslight/android-dependency-scanning'
+            url = uri(
+                    project.version.toString().endsWith('-SNAPSHOT')
+                            ? snapshotsRepositoryUrl
+                            : releasesRepositoryUrl
+            )
 
-                scm {
-                    url 'https://github.com/fosslight/android-dependency-scanning.git'
-                }
+            credentials {
+                username = findProperty('ossrhUsername')
+                        ?: System.getenv('OSSRH_USERNAME')
 
-                licenses {
-                    license {
-                        name 'Apache-2.0'
-                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'fosslight'
-                        name 'fosslight'
-                        email 'fosslight-dev@lge.com'
-                    }
-                }
+                password = findProperty('ossrhPassword')
+                        ?: System.getenv('OSSRH_PASSWORD')
             }
         }
     }
 }
 
+def signingKeyValue = findProperty('signingKey')
+        ?: System.getenv('SIGNING_KEY')
+
+def signingPasswordValue = findProperty('signingPassword')
+        ?: System.getenv('SIGNING_PASSWORD')
+
+def releaseVersion =
+        !project.version.toString().endsWith('-SNAPSHOT')
+
+signing {
+    required = {
+        releaseVersion && gradle.taskGraph.allTasks.any { task ->
+            task.name.startsWith('publish') &&
+                    task.name != 'publishToMavenLocal'
+        }
+    }
+
+    if (signingKeyValue && signingPasswordValue) {
+        useInMemoryPgpKeys(
+                signingKeyValue.toString().replace('\\n', '\n'),
+                signingPasswordValue.toString()
+        )
+
+        sign publishing.publications
+    }
+}
