@@ -18,7 +18,7 @@ plugins {
 }
 
 group = 'org.fosslight'
-version = '2.0.0-SNAPSHOT'
+version = '2.0.0'
 
 base {
     archivesName = 'android-dependency-scanning'
