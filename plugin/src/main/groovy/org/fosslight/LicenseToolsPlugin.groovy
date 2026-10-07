@@ -8,10 +8,39 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.xml.sax.helpers.DefaultHandler
 import org.yaml.snakeyaml.Yaml
 
 class LicenseToolsPlugin implements Plugin<Project> {
+
+    private static final List<String> LICENSE_TXT_HEADER_FIELDS = [
+        '"ID"',
+        'Source Name or Path',
+        'OSS Name',
+        'OSS Version',
+        'License',
+        'Download Location',
+        'Homepage',
+        'Copyright Text',
+        'License Text',
+        'Exclude',
+        'Comment'
+    ]
+    private static final List<String> LICENSE_TXT_TEMPLATE_FIELDS = [
+        '-',
+        '[Name of the Source File or Path]',
+        '[Name of the OSS used in the Source Code]',
+        '[Version Number of the OSS]',
+        '[License of the OSS. Use SPDX Identifier : https://spdx.org/licenses/]',
+        '[Download URL or a specific location within a VCS for the OSS]',
+        '[Web site that serves as the OSS\'s home page]',
+        '[The copyright holders of the OSS]',
+        '[License Text of the License. This field can be skipped if the License is in SPDX.]',
+        '[If this OSS is not included in the final version, Exclude]'
+    ]
 
     final yaml = new Yaml()
 
@@ -25,38 +54,14 @@ class LicenseToolsPlugin implements Plugin<Project> {
         def checkLicenses = project.task('checkLicenses').doLast {
             initialize(project)
 
-            def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
-            def notInDependencies = librariesYaml.notListedIn(dependencyLicenses)
-            def licensesNotMatched = dependencyLicenses.licensesNotMatched(librariesYaml)
-
-            if (notDocumented.empty && notInDependencies.empty && licensesNotMatched.empty) {
+            def result = collectLicenseCheckResult(project)
+            if (result.notDocumented.empty && result.notInDependencies.empty && result.licensesNotMatched.empty) {
                 project.logger.info("checkLicenses: ok")
                 return
             }
 
-            LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
-
-            if (notDocumented.size() > 0) {
-                project.logger.warn("# Libraries not listed in ${ext.licensesYaml}:")
-                notDocumented.each { libraryInfo ->
-                    def text = generateLibraryInfoText(libraryInfo)
-                    project.logger.warn(text)
-                }
-            }
-
-            if (notInDependencies.size() > 0) {
-                project.logger.warn("# Libraries listed in ${ext.licensesYaml} but not in dependencies:")
-                notInDependencies.each { libraryInfo ->
-                    project.logger.warn("- artifact: ${libraryInfo.artifactId}\n")
-                }
-            }
-            if (licensesNotMatched.size() > 0) {
-                project.logger.warn("# Licenses not matched with pom.xml in dependencies:")
-                licensesNotMatched.each { libraryInfo ->
-                    project.logger.warn("- artifact: ${libraryInfo.artifactId}\n  license: ${libraryInfo.license}")
-                }
-            }
-            throw new GradleException("checkLicenses: missing libraries in ${ext.licensesYaml}")
+            logLicenseCheckResult(project, result)
+            throw new GradleException("checkLicenses: missing libraries in ${extension(project).licensesYaml}")
         }
 
         checkLicenses.configure {
@@ -68,7 +73,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
             initialize(project)
 
             def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
-            LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
+            LicenseToolsExtension ext = extension(project)
 
             notDocumented.each { libraryInfo ->
                 def text = generateLibraryInfoText(libraryInfo)
@@ -78,20 +83,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
 
         def generateLicenseTxt = project.task('generateLicenseTxt').doLast {
             initialize_NoncheckExist(project)
-            def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
-            int idx = 1
-
-            LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
-            project.file(ext.outputTxt).write("\"ID\"\tSource Name or Path\tOSS Name\tOSS Version\tLicense\tDownload Location\tHomepage\tCopyright Text\tLicense Text\tExclude\tComment\n")
-            project.file(ext.outputTxt).append("-\t[Name of the Source File or Path]\t[Name of the OSS used in the Source Code]\t[Version Number of the OSS]\t[License of the OSS. Use SPDX Identifier : https://spdx.org/licenses/]\t[Download URL or a specific location within a VCS for the OSS]\t[Web site that serves as the OSS's home page]\t[The copyright holders of the OSS]\t[License Text of the License. This field can be skipped if the License is in SPDX.]\t[If this OSS is not included in the final version, Exclude]\t")
-            notDocumented.each { libraryInfo ->
-                def text = generateLibraryInfoTextWithVersion(libraryInfo,idx++)
-                project.file(ext.outputTxt).append("\n${text}")
-            }
-
-            def outPath = project.file(ext.outputTxt).getAbsolutePath()
-
-            project.logger.warn("Generated 'android_dependency_output.txt' outputs file in ${outPath}")
+            writeLicenseTxt(project)
         }
         def generateLicensePage = project.task('generateLicensePage').doLast {
             initialize(project)
@@ -108,14 +100,88 @@ class LicenseToolsPlugin implements Plugin<Project> {
         project.tasks.findByName("check").dependsOn('checkLicenses')
     }
 
+    private static LicenseToolsExtension extension(Project project) {
+        project.extensions.findByType(LicenseToolsExtension)
+    }
+
+    private Map<String, List<LibraryInfo>> collectLicenseCheckResult(Project project) {
+        def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
+        def notInDependencies = librariesYaml.notListedIn(dependencyLicenses)
+        def licensesNotMatched = dependencyLicenses.licensesNotMatched(librariesYaml)
+
+        return [
+            notDocumented: notDocumented,
+            notInDependencies: notInDependencies,
+            licensesNotMatched: licensesNotMatched
+        ]
+    }
+
+    private void logLicenseCheckResult(Project project, Map<String, List<LibraryInfo>> result) {
+        LicenseToolsExtension ext = extension(project)
+
+        if (!result.notDocumented.empty) {
+            project.logger.warn("# Libraries not listed in ${ext.licensesYaml}:")
+            result.notDocumented.each { libraryInfo ->
+                project.logger.warn(generateLibraryInfoText(libraryInfo))
+            }
+        }
+
+        if (!result.notInDependencies.empty) {
+            project.logger.warn("# Libraries listed in ${ext.licensesYaml} but not in dependencies:")
+            result.notInDependencies.each { libraryInfo ->
+                project.logger.warn("- artifact: ${libraryInfo.artifactId}\n")
+            }
+        }
+
+        if (!result.licensesNotMatched.empty) {
+            project.logger.warn("# Licenses not matched with pom.xml in dependencies:")
+            result.licensesNotMatched.each { libraryInfo ->
+                project.logger.warn("- artifact: ${libraryInfo.artifactId}\n  license: ${libraryInfo.license}")
+            }
+        }
+    }
+
+    private void writeLicenseTxt(Project project) {
+        def notDocumented = dependencyLicenses.notListedIn(librariesYaml)
+        int idx = 1
+
+        LicenseToolsExtension ext = extension(project)
+        def outputFile = project.file(ext.outputTxt)
+        outputFile.write(LICENSE_TXT_HEADER_FIELDS.join('\t') + '\n')
+        outputFile.append(LICENSE_TXT_TEMPLATE_FIELDS.join('\t') + '\t')
+        notDocumented.each { libraryInfo ->
+            outputFile.append("\n${generateLibraryInfoTextWithVersion(libraryInfo, idx++)}")
+        }
+
+        project.logger.warn("Generated 'android_dependency_output.txt' outputs file in ${outputFile.absolutePath}")
+    }
+
+    private static void mergeLibraryMetadata(LibraryInfo target, LibraryInfo candidate) {
+        if (!target) {
+            return
+        }
+        target.license = target.license ?: candidate.license
+        target.filename = candidate.filename ?: target.filename
+        target.artifactId = candidate.artifactId ?: target.artifactId
+        target.url = target.url ?: candidate.url
+    }
+
     void initialize(Project project) {
-        LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
+        LicenseToolsExtension ext = extension(project)
         loadLibrariesYaml(project.file(ext.licensesYaml))
-        loadDependencyLicenses(project, ext.ignoredGroups, ext.ignoredProjects)
+        loadDependencyLicenses(
+                project,
+                ext.ignoredGroups,
+                ext.runtimeConfigurationName
+        )
     }
     void initialize_NoncheckExist(Project project) {
-        LicenseToolsExtension ext = project.extensions.findByType(LicenseToolsExtension)
-        loadDependencyLicenses(project, ext.ignoredGroups, ext.ignoredProjects)
+        LicenseToolsExtension ext = extension(project)
+        loadDependencyLicenses(
+                project,
+                ext.ignoredGroups,
+                ext.runtimeConfigurationName
+        )
     }
 
     void loadLibrariesYaml(File licensesYaml) {
@@ -130,58 +196,132 @@ class LicenseToolsPlugin implements Plugin<Project> {
         }
     }
 
-    void loadDependencyLicenses(Project project, Set<String> ignoredGroups, Set<String> ignoredProjects) {
-        resolveProjectDependencies(project, ignoredProjects).each { d ->
-            if (d.moduleVersion.id.version == "unspecified") {
-                return
-            }
-            if (ignoredGroups.contains(d.moduleVersion.id.group)) {
+
+    void loadDependencyLicenses(
+            Project project,
+            Set<String> ignoredGroups,
+            String runtimeConfigurationName = 'releaseRuntimeClasspath'
+    ) {
+        resolveProjectDependencies(project, runtimeConfigurationName).each { ResolvedArtifactResult artifact ->
+
+            def componentId =
+                    artifact.id.componentIdentifier
+
+            if (!(componentId instanceof
+                    ModuleComponentIdentifier)) {
                 return
             }
 
-            def dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version"
+            String group = componentId.group
+            String module = componentId.module
+            String version = componentId.version
 
-            def libraryInfo = new LibraryInfo()
+            if (!group ||
+                    !module ||
+                    !version ||
+                    version == 'unspecified') {
+                return
+            }
+
+            if (ignoredGroups.contains(group)) {
+                return
+            }
+
+            String dependencyDesc =
+                    "${group}:${module}:${version}"
+
+            LibraryInfo libraryInfo = new LibraryInfo()
+
             try {
-                libraryInfo.artifactId = ArtifactId.parse(dependencyDesc)
-                libraryInfo.filename = d.file
-                dependencyLicenses.add(libraryInfo)
+                libraryInfo.artifactId =
+                        ArtifactId.parse(dependencyDesc)
+
+                /*
+                * Resolved JAR or AAR file.
+                */
+                libraryInfo.filename = artifact.file
             } catch (IllegalArgumentException e) {
-                project.logger.info("Unsupport dependency: $dependencyDesc")
+                project.logger.info(
+                        "Unsupported dependency: ${dependencyDesc}"
+                )
                 return
             }
 
-            Dependency pomDependency = project.dependencies.create("$dependencyDesc@pom")
-            Configuration pomConfiguration = project.configurations.detachedConfiguration(pomDependency)
+            Dependency pomDependency =
+                    project.dependencies.create(
+                            "${dependencyDesc}@pom"
+                    )
 
-            pomConfiguration.resolve().each {
-                project.logger.info("POM: ${it}")
-            }
+            Configuration pomConfiguration =
+                    project.configurations.detachedConfiguration(
+                            pomDependency
+                    )
 
-            File pStream
+            File pomFile
+
             try {
-                pStream = pomConfiguration.resolve().asList().first()
+                Set<File> pomFiles = pomConfiguration.resolve()
+
+                if (pomFiles.isEmpty()) {
+                    project.logger.warn(
+                            "Unable to retrieve POM for ${dependencyDesc}"
+                    )
+                } else {
+                    pomFile = pomFiles.first()
+                }
             } catch (Exception e) {
-                project.logger.warn("Unable to retrieve license for $dependencyDesc")
+                project.logger.warn(
+                        "Unable to retrieve license for " +
+                                "${dependencyDesc}: ${e.message}"
+                )
+            }
+
+            /*
+            * Keep the dependency in the result even if its POM or license
+            * metadata cannot be retrieved. Artifact resolution already
+            * succeeded, so omitting it here would create an incomplete list.
+            */
+            dependencyLicenses.add(libraryInfo)
+
+            if (pomFile == null) {
                 return
             }
 
-            XmlSlurper slurper = new XmlSlurper(true, false)
-            slurper.setErrorHandler(new DefaultHandler())
-            def xml = slurper.parse(pStream)
+            try {
+                XmlSlurper slurper =
+                        new XmlSlurper(true, false)
 
-            libraryInfo.libraryName = xml.name.text()
-            libraryInfo.url = xml.url.text()
+                slurper.setErrorHandler(
+                        new DefaultHandler()
+                )
 
-            xml.licenses.license.each {
-                if (!libraryInfo.license) {
-                    // takes the first license
-                    libraryInfo.license = it.name.text().trim()
-                    libraryInfo.licenseUrl = it.url.text().trim()
+                def xml = slurper.parse(pomFile)
+
+                libraryInfo.libraryName =
+                        xml.name.text().trim()
+
+                libraryInfo.url =
+                        xml.url.text().trim()
+
+                xml.licenses.license.each { license ->
+                    if (!libraryInfo.license) {
+                        libraryInfo.license =
+                                license.name.text().trim()
+
+                        libraryInfo.licenseUrl =
+                                license.url.text().trim()
+                    }
                 }
+            } catch (Exception e) {
+                project.logger.warn(
+                        "Unable to parse POM license metadata for " +
+                                "${dependencyDesc}: ${e.message}"
+                )
             }
         }
     }
+
+
 
     Map<String, ?> loadYaml(File yamlFile) {
         return yaml.load(yamlFile.text) as Map<String, ?> ?: [:]
@@ -194,18 +334,13 @@ class LicenseToolsPlugin implements Plugin<Project> {
         def content = new StringBuilder()
 
         librariesYaml.each { libraryInfo ->
-            if (libraryInfo.skip) {
-                project.logger.info("generateLicensePage: skip ${libraryInfo.name}")
+            if (shouldSkipLibrary(project, libraryInfo, 'generateLicensePage')) {
                 return
             }
 
-            // merge dependencyLicenses's libraryInfo into librariesYaml's
-            def o = dependencyLicenses.find(libraryInfo.artifactId)
-            if (o) {
-                libraryInfo.license = libraryInfo.license ?: o.license
-                libraryInfo.filename = o.filename
-                libraryInfo.artifactId = o.artifactId
-                libraryInfo.url = libraryInfo.url ?: o.url
+            def dependencyInfo = dependencyLicenses.find(libraryInfo.artifactId)
+            if (dependencyInfo) {
+                mergeLibraryMetadata(libraryInfo, dependencyInfo)
             }
             try {
                 content.append(Templates.buildLicenseHtml(libraryInfo));
@@ -215,21 +350,14 @@ class LicenseToolsPlugin implements Plugin<Project> {
         }
 
         assertEmptyLibraries(noLicenseLibraries)
-
-        def assetsDir = project.file("src/main/assets")
-        if (!assetsDir.exists()) {
-            assetsDir.mkdirs()
-        }
-
-        project.logger.info("render ${assetsDir}/${ext.outputHtml}")
-        project.file("${assetsDir}/${ext.outputHtml}").write(Templates.wrapWithLayout(content))
+        writeAssetFile(project, ext.outputHtml, Templates.wrapWithLayout(content))
     }
 
     static String generateLibraryInfoTextWithVersion(LibraryInfo libraryInfo,int idx) {
         def text = new StringBuffer()
 
-        String ID_Str = idx.toString()
-        text.append("${ID_Str}\t") // ID
+        String idText = idx.toString()
+        text.append("${idText}\t") // ID
 
         text.append("build.gradle\t") // Source path
 
@@ -240,10 +368,10 @@ class LicenseToolsPlugin implements Plugin<Project> {
         } else {
             text.append("N/A\t")
         }
-        String license_origin = libraryInfo.license
-        String modified_license = license_origin.replace(",","")
 
-        text.append("${modified_license}\t") // License Name
+        String originalLicense = libraryInfo.license ?: ''
+        String normalizedLicense = originalLicense.replace(',', '')
+        text.append("${normalizedLicense}\t") // License Name
 
         text.append("https://mvnrepository.com/artifact/${libraryInfo.artifactId.withSlash()}\t") // Download Location
 
@@ -290,18 +418,13 @@ class LicenseToolsPlugin implements Plugin<Project> {
         def librariesArray = []
 
         librariesYaml.each { libraryInfo ->
-            if (libraryInfo.skip) {
-                project.logger.info("generateLicensePage: skip ${libraryInfo.name}")
+            if (shouldSkipLibrary(project, libraryInfo, 'generateLicenseJson')) {
                 return
             }
 
-            // merge dependencyLicenses's libraryInfo into librariesYaml's
-            def o = dependencyLicenses.find(libraryInfo.artifactId)
-            if (o) {
-                libraryInfo.license = libraryInfo.license ?: o.license
-                // libraryInfo.filename = o.filename
-                libraryInfo.artifactId = o.artifactId
-                libraryInfo.url = libraryInfo.url ?: o.url
+            def dependencyInfo = dependencyLicenses.find(libraryInfo.artifactId)
+            if (dependencyInfo) {
+                mergeLibraryMetadata(libraryInfo, dependencyInfo)
             }
             try {
                 Templates.assertLicenseAndStatement(libraryInfo)
@@ -313,42 +436,52 @@ class LicenseToolsPlugin implements Plugin<Project> {
 
         assertEmptyLibraries(noLicenseLibraries)
 
+        json {
+            libraries librariesArray.collect { l ->
+                return [
+                    notice: l.notice,
+                    copyrightHolder: l.copyrightHolder,
+                    copyrightStatement: l.copyrightStatement,
+                    license: l.license,
+                    licenseUrl: l.licenseUrl,
+                    normalizedLicense: l.normalizedLicense,
+                    year: l.year,
+                    url: l.url,
+                    libraryName: l.libraryName,
+                    artifactId: [
+                        name: l.artifactId.name,
+                        group: l.artifactId.group,
+                        version: l.artifactId.version,
+                    ]
+                ]
+            }
+        }
+
+        writeAssetFile(project, ext.outputJson, json.toString())
+    }
+
+    private static boolean shouldSkipLibrary(Project project, LibraryInfo libraryInfo, String taskName) {
+        if (!libraryInfo.skip) {
+            return false
+        }
+
+        project.logger.info("${taskName}: skip ${libraryInfo.name}")
+        return true
+    }
+
+    private static void writeAssetFile(Project project, String outputFileName, String content) {
         def assetsDir = project.file("src/main/assets")
         if (!assetsDir.exists()) {
             assetsDir.mkdirs()
         }
 
-        json {
-            libraries librariesArray.collect {
-                l ->
-                    return [
-                        notice: l.notice,
-                        copyrightHolder: l.copyrightHolder,
-                        copyrightStatement: l.copyrightStatement,
-                        license: l.license,
-                        licenseUrl: l.licenseUrl,
-                        normalizedLicense: l.normalizedLicense,
-                        year: l.year,
-                        url: l.url,
-                        libraryName: l.libraryName,
-                        // I don't why artifactId won't serialize, and this is the only way
-                        // I've found -- vishna
-                        artifactId: [
-                                name: l.artifactId.name,
-                                group: l.artifactId.group,
-                                version: l.artifactId.version,
-                        ]
-                    ]
-            }
-        }
-
-        project.logger.info("render ${assetsDir}/${ext.outputJson}")
-        project.file("${assetsDir}/${ext.outputJson}").write(json.toString())
+        project.logger.info("render ${assetsDir}/${outputFileName}")
+        project.file("${assetsDir}/${outputFileName}").write(content)
     }
 
     static void assertEmptyLibraries(ArrayList<LibraryInfo> noLicenseLibraries) {
-        if (noLicenseLibraries.empty) return;
-        StringBuilder message = new StringBuilder();
+        if (noLicenseLibraries.empty) return
+        StringBuilder message = new StringBuilder()
         message.append("Not enough information for:\n")
         message.append("---\n")
         noLicenseLibraries.each { libraryInfo ->
@@ -365,66 +498,81 @@ class LicenseToolsPlugin implements Plugin<Project> {
         throw new RuntimeException(message.toString())
     }
 
-    // originated from https://github.com/hierynomus/license-gradle-plugin DependencyResolver.groovy
-    Set<ResolvedArtifact> resolveProjectDependencies(
+    private Configuration resolveRuntimeConfiguration(
             Project project,
-            Set<String> ignoredProjects
+            String runtimeConfigurationName = 'releaseRuntimeClasspath'
     ) {
-        List<ResolvedArtifact> runtimeDependencies = []
+        String targetName = runtimeConfigurationName
+        if (targetName == null || targetName.trim().isEmpty()) {
+            targetName = 'releaseRuntimeClasspath'
+        }
 
-        /*
-        * Analyze only resolvable runtime classpath configurations belonging
-        * to the project where the FOSSLight plugin is applied.
-        *
-        * The app RuntimeClasspath includes:
-        * - Direct external dependencies of the app
-        * - External dependencies from project(':library')
-        * - Transitive dependencies
-        */
-        project.configurations
-                .findAll { Configuration configuration ->
-                    String name = configuration.name.toLowerCase()
+        Configuration configuration =
+                project.configurations.findByName(targetName)
 
-                    configuration.canBeResolved &&
-                            name.endsWith('releaseruntimeclasspath') &&
-                            !name.contains('test')
-                }
-                .each { Configuration configuration ->
-                    project.logger.info(
-                            "Resolving configuration: " +
-                                    "${project.path}:${configuration.name}"
-                    )
+        if (configuration == null) {
+            throw new GradleException(
+                    "Configuration not found: ${project.path}:${targetName}"
+            )
+        }
 
-                    Set<ResolvedArtifact> artifacts =
-                            configuration.resolvedConfiguration
-                                    .lenientConfiguration
-                                    .artifacts
+        if (!configuration.canBeResolved) {
+            throw new GradleException(
+                    "Configuration cannot be resolved: ${project.path}:${configuration.name}"
+            )
+        }
 
-                    runtimeDependencies.addAll(artifacts)
-                }
+        return configuration
+    }
 
-        /*
-        * Remove duplicates using group:name:version.
-        */
-        Map<String, ResolvedArtifact> uniqueDependencies =
+    Set<ResolvedArtifactResult> resolveProjectDependencies(
+            Project project,
+            String runtimeConfigurationName = 'releaseRuntimeClasspath'
+    ) {
+        Map<String, ResolvedArtifactResult> uniqueDependencies =
                 new LinkedHashMap<>()
 
-        runtimeDependencies.each { ResolvedArtifact artifact ->
-            if (artifact == null) {
+        Configuration configuration =
+                resolveRuntimeConfiguration(project, runtimeConfigurationName)
+
+        project.logger.lifecycle(
+                "Resolving configuration: " +
+                        "${project.path}:${configuration.name}"
+        )
+
+        def artifactView =
+                configuration.incoming.artifactView { view ->
+                    view.lenient = true
+
+                    view.componentFilter { componentId ->
+                        componentId instanceof ModuleComponentIdentifier
+                    }
+                }
+
+        Set<ResolvedArtifactResult> artifacts =
+                artifactView.artifacts.artifacts
+
+        artifacts.each { ResolvedArtifactResult artifact ->
+            def componentId =
+                    artifact.id.componentIdentifier
+
+            if (!(componentId instanceof ModuleComponentIdentifier)) {
                 return
             }
 
-            def moduleId = artifact.moduleVersion?.id
+            String group = componentId.group
+            String module = componentId.module
+            String version = componentId.version
 
-            if (!moduleId?.group ||
-                    !moduleId?.name ||
-                    !moduleId?.version ||
-                    moduleId.version == 'unspecified') {
+            if (!group ||
+                    !module ||
+                    !version ||
+                    version == 'unspecified') {
                 return
             }
 
             String dependencyDesc =
-                    "${moduleId.group}:${moduleId.name}:${moduleId.version}"
+                    "${group}:${module}:${version}"
 
             uniqueDependencies.putIfAbsent(
                     dependencyDesc,
@@ -432,7 +580,7 @@ class LicenseToolsPlugin implements Plugin<Project> {
             )
         }
 
-        return new LinkedHashSet<ResolvedArtifact>(
+        return new LinkedHashSet<ResolvedArtifactResult>(
                 uniqueDependencies.values()
         )
     }
