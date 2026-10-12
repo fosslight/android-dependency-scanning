@@ -1,0 +1,96 @@
+name: Publish to Maven Central
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maven-central-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish artifact
+    if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission
+        run: chmod +x ./gradlew
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+
+          PROJECT_VERSION="$(
+            ./gradlew :plugin:properties -q |
+            sed -n 's/^version: //p' |
+            head -n 1
+          )"
+
+          echo "Release tag: ${RELEASE_TAG}"
+          echo "Release version: ${RELEASE_VERSION}"
+          echo "Plugin version: ${PROJECT_VERSION}"
+
+          if [ -z "${PROJECT_VERSION}" ] ||
+             [ "${PROJECT_VERSION}" = "unspecified" ]; then
+            echo "::error::Could not determine the plugin version."
+            exit 1
+          fi
+
+          if [ "${RELEASE_VERSION}" != "${PROJECT_VERSION}" ]; then
+            echo "::error::Release version (${RELEASE_VERSION}) does not match plugin version (${PROJECT_VERSION})."
+            exit 1
+          fi
+
+      - name: Build and test
+        run: ./gradlew clean build --stacktrace
+
+      - name: Upload artifacts to OSSRH staging API
+        run: ./gradlew :plugin:publishAllPublicationsToOssrhRepository --stacktrace
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+      - name: Upload and publish Central deployment
+        shell: bash
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        run: |
+          AUTH_TOKEN="$(
+            printf '%s:%s' "${OSSRH_USERNAME}" "${OSSRH_PASSWORD}" |
+            base64 |
+            tr -d '\n'
+          )"
+
+          curl --fail-with-body \
+            --silent \
+            --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${AUTH_TOKEN}" \
+            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/org.fosslight?publishing_type=automatic"
